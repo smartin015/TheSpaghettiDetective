@@ -48,7 +48,7 @@ services:
         FLASK_APP: 'server.py'
         #ML_API_TOKEN:
         #HAS_GPU: 'False'
-    command: bash -c "gunicorn --bind 0.0.0.0:3333 --workers 1 wsgi"
+    command: bash -c "ln -sf /usr/lib/aarch64-linux-gnu/tegra/libcuda.so /usr/lib/aarch64-linux-gnu/tegra/libcuda.so.1 && ln -s /usr/lib/aarch64-linux-gnu/tegra/libnvidia-ptxjitcompiler.so.440.18 /usr/lib/aarch64-linux-gnu/tegra/libnvidia-ptxjitcompiler.so.1 && gunicorn --bind 0.0.0.0:3333 --workers 1 wsgi"
 
   web:
     <<: *web-defaults
