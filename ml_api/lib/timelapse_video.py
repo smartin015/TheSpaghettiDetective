@@ -3,6 +3,9 @@ import cv2
 from os import path
 import json
 import glob
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
 
 from lib.detection_model import load_net, detect
 
@@ -29,6 +32,7 @@ def video_detect(jpgs_path, save_frame_to=None, weights_path=path.join(path.dirn
     net_main, meta_main = load_net(cfg_path, weights_path, meta_path)
 
     if save_frame_to:
+        print(f"Saving frames to {save_frame_to}")
         if not path.exists(save_frame_to):
             os.makedirs(save_frame_to)
 
@@ -36,10 +40,12 @@ def video_detect(jpgs_path, save_frame_to=None, weights_path=path.join(path.dirn
     result = []
     session = {}
     for idx, jpg_file in enumerate(jpg_files):
+        print(f"Detecting {jpg_file}")
         custom_image_bgr = cv2.imread(jpg_file)
-        detections = detect(net_main, meta_main, custom_image_bgr, thresh=thresh)
+        detections = detect(net_main, meta_main, custom_image_bgr, thresh=thresh, logger=logging)
         img_file = "%05d.jpg" % idx
         if save_frame_to:
+            print(f"Saving frame {img_file}")
             cv2.imwrite(path.join(save_frame_to, img_file), overlay_detections(custom_image_bgr, detections))
 
         p = 0.0

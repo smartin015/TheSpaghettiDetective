@@ -42,13 +42,20 @@ services:
     hostname: ml_api
     restart: unless-stopped
     build:
-      context: ml_api
+      context: ./ml_api/
+    volumes:
+      - ./ml_api:/app # TODO remove
+    runtime: nvidia
+    ports:
+      - "3333:3333"
     environment:
+        HAS_GPU: 'True'
         DEBUG: 'True'
         FLASK_APP: 'server.py'
+        LOGLEVEL: 'DEBUG'
         #ML_API_TOKEN:
         #HAS_GPU: 'False'
-    command: bash -c "ln -sf /usr/lib/aarch64-linux-gnu/tegra/libcuda.so /usr/lib/aarch64-linux-gnu/tegra/libcuda.so.1 && ln -s /usr/lib/aarch64-linux-gnu/tegra/libnvidia-ptxjitcompiler.so.440.18 /usr/lib/aarch64-linux-gnu/tegra/libnvidia-ptxjitcompiler.so.1 && gunicorn --bind 0.0.0.0:3333 --workers 1 wsgi"
+    command: bash -c "ln -sf /usr/lib/aarch64-linux-gnu/tegra/libcuda.so /usr/lib/aarch64-linux-gnu/tegra/libcuda.so.1 && ln -sf /usr/lib/aarch64-linux-gnu/tegra/libnvidia-ptxjitcompiler.so.440.18 /usr/lib/aarch64-linux-gnu/tegra/libnvidia-ptxjitcompiler.so.1 && gunicorn --bind 0.0.0.0:3333 --workers 1 wsgi"
 
   web:
     <<: *web-defaults

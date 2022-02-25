@@ -139,5 +139,48 @@ To build the main image locally:
 docker-compose build ml_api
 ```
 
+## Faster model development
+
+```
+sudo docker run -it --rm --gpus=all -v $(pwd):/app thespaghettidetective_ml_api:latest /bin/bash
+```
+
+Running detect_timelapse.sh requires `apt -y install ffmpeg`
+
+```
+apt update && apt -y install ffmpeg 
+ln -s model/3209.neg_32213.22300.weights model/model.weights
+
+PYTHONUNBUFFERED=1 ./scripts/detect_timelapse.sh spaghetti.mp4 $(pwd)/out model/3209.neg_32213.22300.weights  5
+```
+
+Segfaults: 
+```
+PYTHONFAULTHANDLER=1 catchsegv python3 -m detection_model_v2 --input=/tmp/in/spaghetti.mp4/ --weights ../model/3209.neg_32213.22300.weights  --data_file=../model/model.meta --config_file=../model/model.cfg --batch_size=1 --thresh=0.2 --save_labels --dont_show
+```
+
+
+To see inside the \*.so file: `nm -D bin/model_aarch64.so`
+
+
+Successful run with latest darknet python code:
+```
+docker-compose build ml_api
+sudo docker run -it --rm --gpus=all thespaghettidetective_ml_api:latest /bin/bash
+wget https://user-images.githubusercontent.com/607666/154857506-f67fe00c-a423-4a12-9ee0-8dced1b72968.png
+python lib/detection_model_v2.py --input=154857506-f67fe00c-a423-4a12-9ee0-8dced1b72968.png --weights=model/model.weights --config_file=model/model.cfg --data_file=model/model.meta --dont_show --thresh=0.1
+```
+
+For rapid prototyping/development:
+```
+docker-compose run --service-ports --volume=./ml_api:/app ml_api /bin/bash
+unicorn --bind 0.0.0.0:3333 --workers 1 wsgi
+```
+
+Then go to a browser and do one of these:
+```
+http://localhost:3333/hc/
+http://localhost:3333/p/?img=https://user-images.githubusercontent.com/607666/154857506-f67fe00c-a423-4a12-9ee0-8dced1b72968.png
+```
 
 *Thanks to the work of Raymond, LyricPants, and others for their contribution!*

@@ -1,4 +1,6 @@
-#!python3
+#!python3A
+
+# See https://github.com/pjreddie/darknet/blob/master/python/darknet.py for original
 
 # pylint: disable=R, W0401, W0614, W0703
 from ctypes import *
@@ -8,7 +10,6 @@ import os
 import sys
 import cv2
 import platform
-
 
 def sample(probs):
     s = sum(probs)
@@ -37,11 +38,17 @@ class BOX(Structure):
 class DETECTION(Structure):
     _fields_ = [("bbox", BOX),
                 ("classes", c_int),
+                ("best_class_idx", c_int),
                 ("prob", POINTER(c_float)),
                 ("mask", POINTER(c_float)),
                 ("objectness", c_float),
-                ("sort_class", c_int)]
-
+                ("sort_class", c_int),
+                ("uc", POINTER(c_float)),
+                ("points", c_int),
+                ("embeddings", POINTER(c_float)),
+                ("embedding_size", c_int),
+                ("sim", c_float),
+                ("track_id", c_int)]
 
 class IMAGE(Structure):
     _fields_ = [("w", c_int),
@@ -96,6 +103,10 @@ free_ptrs.argtypes = [POINTER(c_void_p), c_int]
 
 network_predict = lib.network_predict
 network_predict.argtypes = [c_void_p, POINTER(c_float)]
+
+num_detections = lib.num_detections
+num_detections.argtypes = [c_void_p, c_float]
+num_detections.restype = c_int
 
 reset_rnn = lib.reset_rnn
 reset_rnn.argtypes = [c_void_p]
@@ -163,62 +174,59 @@ def classify(net, meta, im):
     return res
 
 
-def detect(net, meta, image, thresh=.5, hier_thresh=.5, nms=.45, debug=False):
+def detect(net, meta, image, logger, thresh=.5, hier_thresh=.5, nms=.45):
+    logger.debug(f"detect(...thresh={thresh}, hier_thresh={hier_thresh}, nms={nms})")
     #pylint: disable= C0321
     custom_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     im, arr = array_to_image(custom_image)             # you should comment line below: free_image(im)
-    if debug:
-        print("Loaded image")
+    logger.debug("Loaded image")
+
     num = c_int(0)
-    if debug:
-        print("Assigned num")
+    logger.debug("Assigned num")
+
     pnum = pointer(num)
-    if debug:
-        print("Assigned pnum")
+    logger.debug("Assigned pnum")
+
     predict_image(net, im)
-    if debug:
-        print("did prediction")
+    logger.debug("did prediction; getting dets...")
+
     dets = get_network_boxes(net, custom_image.shape[1], custom_image.shape[0], thresh, hier_thresh, None, 0, pnum, 0)  # OpenCV
-    if debug:
-        print("Got dets")
+    logger.debug(f"Got dets")
+
     num = pnum[0]
-    if debug:
-        print("got zeroth index of pnum")
+    logger.debug(f"got zeroth index of pnum - {num}")
+
     if nms:
         do_nms_sort(dets, num, meta.classes, nms)
-    if debug:
-        print("did sort")
+        logger.debug("did nms")
+
     res = []
-    if debug:
-        print("about to range")
+    logger.debug("Ranging dets")
+    probability_range = [1, 0]
+    max_objectness = 0
     for j in range(num):
-        if debug:
-            print("Ranging on "+str(j)+" of "+str(num))
-        if debug:
-            print("Classes: "+str(meta), meta.classes, meta.names)
+        classes = dets[j].classes
         for i in range(meta.classes):
-            if debug:
-                print("Class-ranging on "+str(i)+" of "+str(meta.classes)+"= "+str(dets[j].prob[i]))
+            # logger.debug(f"Class-ranging {i}/{meta.classes} - {dets[j].prob[i]}")
+            probability_range[0] = min(probability_range[0], dets[j].prob[i])
+            probability_range[1] = max(probability_range[1], dets[j].prob[i])
+            max_objectness = max(max_objectness, dets[j].objectness)
             if dets[j].prob[i] > 0:
                 b = dets[j].bbox
                 if alt_names is None:
                     nameTag = meta.names[i]
                 else:
                     nameTag = alt_names[i]
-                if debug:
-                    print("Got bbox", b)
-                    print(nameTag)
-                    print(dets[j].prob[i])
-                    print((b.x, b.y, b.w, b.h))
+                logger.debug(f"Got bbox {b} at det {j} - {nameTag} - {dets[j].prob[i]} - {(b.x, b.y, b.w, b.h)}")
                 res.append((nameTag, dets[j].prob[i], (b.x, b.y, b.w, b.h)))
-    if debug:
-        print("did range")
+
+    logger.debug(f"probability range: {probability_range}, max obj {max_objectness}")
+
     res = sorted(res, key=lambda x: -x[1])
-    if debug:
-        print("did sort")
+    logger.debug("did sort")
+
     free_detections(dets, num)
-    if debug:
-        print("freed detections")
+    logger.debug("freed detections")
     return res
 
 
@@ -265,8 +273,10 @@ def load_net(config_path, weight_path, meta_path):
 
 
 if __name__ == "__main__":
-    net_main_1, meta_main_1 = load_net("../model/model.cfg", "../model/model.weights", "../model/model.meta")
+    net_main_1, meta_main_1 = load_net("model/model.cfg", "model/model.weights", "model/model.meta")
 
     import cv2
+    import logging
+    logging.basicConfig()
     custom_image_bgr = cv2.imread(sys.argv[1])  # use: detect(,,imagePath,)
-    print(detect(net_main_1, meta_main_1, custom_image_bgr, thresh=0.25))
+    print(detect(net_main_1, meta_main_1, custom_image_bgr, logging, thresh=0.05))
